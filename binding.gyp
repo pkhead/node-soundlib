@@ -1,7 +1,7 @@
 {
     "targets": [
         {
-            "target_name": "audio",
+            "target_name": "audiolib",
             "sources": ["binding.cpp"],
             "include_dirs": [
                 "<!(node -p \"require('node-addon-api').include_dir\")",

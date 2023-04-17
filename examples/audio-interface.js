@@ -1,4 +1,4 @@
-const bindings = require("../build/Release/audio.node");
+const bindings = require("../build/Release/audiolib.node");
 
 let openDevices = [];
 
