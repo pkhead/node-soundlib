@@ -1,7 +1,7 @@
 {
-  "name": "audio",
+  "name": "soundlib",
   "version": "1.0.0",
-  "description": "wrapper for libsoundio",
+  "description": "Node.js audio library using libsoundio",
   "main": "index.js",
   "scripts": {
     "preinstall": "sh ./install.sh",
