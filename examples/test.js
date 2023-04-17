@@ -1,15 +1,10 @@
 const audiolib = require("../index");
 
 let outputDevice = new audiolib.AudioOutputDevice();
-console.log(outputDevice.samplesPerBlock);
 
 setInterval(() => {
-    console.log("1 sec");
-
-    console.log(outputDevice.queueSize);
-    
-    while (outputDevice.queueSize < 16) {
-        let arr = new Float32Array(outputDevice.samplesPerBlock * outputDevice.channelCount);
+    while (outputDevice.numFreeSamples > 256 * outputDevice.channelCount) {
+        let arr = new Float32Array(256 * outputDevice.channelCount);
 
         for (let i = 0; i < arr.length; i += 2) {
             let val = 0.1 * (Math.random() * 2 - 1);
@@ -19,4 +14,4 @@ setInterval(() => {
 
         outputDevice.queue(arr.buffer);
     }
-}, 1000 / 16);
+}, 16);

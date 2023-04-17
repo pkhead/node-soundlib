@@ -88,13 +88,13 @@ exports.AudioOutputDevice = class {
     get channelCount() {
         return this._handle.getChannelCount();
     }
-
-    get queueSize() {
-        return this._handle.getQueueSize();
+    
+    get numFreeSamples() {
+        return this._handle.getBytesFree() / this._handle.getSampleSize();
     }
 
-    get samplesPerBlock() {
-        return this._handle.getSamplesPerBlock();
+    get sampleByteSize() {
+        return this._handle.getSampleSize();
     }
 
     get format() {
