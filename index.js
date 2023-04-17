@@ -77,12 +77,8 @@ exports.AudioOutputDevice = class {
         if (idx >= 0) openDevices.splice(idx, 1);
     }
 
-    get process() {
-        return this._handle.getCallback();
-    }
-
-    set process(callback) {
-        this._handle.setCallback(callback);
+    queue(buffer) {
+        return this._handle.queue(buffer);
     }
 
     get sampleRate() {
@@ -91,6 +87,14 @@ exports.AudioOutputDevice = class {
 
     get channelCount() {
         return this._handle.getChannelCount();
+    }
+
+    get queueSize() {
+        return this._handle.getQueueSize();
+    }
+
+    get samplesPerBlock() {
+        return this._handle.getSamplesPerBlock();
     }
 
     get format() {

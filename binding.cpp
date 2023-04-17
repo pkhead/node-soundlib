@@ -2,6 +2,9 @@
 #include <soundio/soundio.h>
 #include <sstream>
 #include <iostream>
+#include <random>
+#include <stack>
+#include <mutex>
 
 using namespace Napi;
 
@@ -11,33 +14,48 @@ struct OutputDeviceStruct {
     Napi::ObjectReference jsRef;
 };
 
+// Buffer size measured in frames
+constexpr size_t BUFFER_SIZE = 512;
+
 class AudioOutputDevice : public Napi::ObjectWrap<AudioOutputDevice> {
     public:
         static Napi::Object Init(Napi::Env env, Napi::Object exports);
         AudioOutputDevice(const Napi::CallbackInfo& info);
         ~AudioOutputDevice();
         static Napi::Value New(const Napi::CallbackInfo& info);
-        Napi::FunctionReference jsCallback;
+        Napi::ThreadSafeFunction jsCallback;
+        bool callbackSet;
+
+        bool popQueue(uint8_t* &out, size_t &size);
 
     private:
         SoundIoOutStream* outStream;
         SoundIoDevice* device;
         bool isClosed;
+        std::stack<uint8_t*> blockQueue;
+        std::mutex queueMutex;
 
         Napi::Value Close(const Napi::CallbackInfo& info);
-        Napi::Value SetCallback(const Napi::CallbackInfo& info);
-        Napi::Value GetCallback(const Napi::CallbackInfo& info);
+        // Napi::Value SetCallback(const Napi::CallbackInfo& info);
+        // Napi::Value GetCallback(const Napi::CallbackInfo& info);
 
         Napi::Value GetSampleRate(const Napi::CallbackInfo& info);
         Napi::Value GetFormat(const Napi::CallbackInfo& info);
-        Napi::Value GetChannelCount(const Napi::CallbackInfo& info);     
+        Napi::Value GetChannelCount(const Napi::CallbackInfo& info);
+
+        Napi::Value Queue(const Napi::CallbackInfo& info);
+        Napi::Value GetSamplesPerBlock(const Napi::CallbackInfo& info);
+        Napi::Value GetQueueSize(const Napi::CallbackInfo& info);
+
 };
 
 static void writeCallback(SoundIoOutStream* outStream, int frameCountMin, int frameCountMax) {
-    //const SoundIoChannelLayout* layout = &outStream->layout;
+    const SoundIoChannelLayout* layout = &outStream->layout;
     struct SoundIoChannelArea* areas;
-    int framesLeft = frameCountMax;
+    int framesLeft = frameCountMin;
     int err;
+
+    size_t frameSize = soundio_get_bytes_per_frame(outStream->format, layout->channel_count);
 
     AudioOutputDevice* data = (AudioOutputDevice*)outStream->userdata;
 
@@ -51,30 +69,21 @@ static void writeCallback(SoundIoOutStream* outStream, int frameCountMin, int fr
 
         if (!frameCount) break;
 
-        try {
-            size_t byteLength = frameCount * outStream->layout.channel_count;
+        size_t offset = 0;
+        
+        uint8_t* block;
+        size_t blockSize;
 
-            if (!data->jsCallback.IsEmpty()) {
-                Napi::Value ret = data->jsCallback.Call({
-                    Napi::Number::New(data->jsCallback.Env(), byteLength)
-                });
-                
-                if (ret.IsBuffer()) {
-                    Napi::Uint8Array buf = ret.As<Napi::Uint8Array>();
+        if (data->popQueue(block, blockSize)) {
+            memcpy(areas[0].ptr + offset, block, blockSize);
+            offset += blockSize;
+        } else {
+            printf("queue empty!\n");
+        }
 
-                    if (buf.ByteLength() != byteLength) {
-                        printf("byte lengths do not match");
-                        return;
-                    }
-
-                    void* data = buf.Data();
-                    memcpy(areas[0].ptr, data, byteLength);
-                }
-            }
-            
-        } catch (const Error& e) {
-            // TODO: better error message
-            printf("parse error: %s\n", e.Message().c_str());
+        // if buffer isn't completely filled, set remaining samples to 0
+        if (offset < frameCount * frameSize) {
+            memset(areas[0].ptr + offset, 0, frameCount * frameSize - offset);
         }
 
         if ((err = soundio_outstream_end_write(outStream))) {
@@ -89,11 +98,14 @@ static void writeCallback(SoundIoOutStream* outStream, int frameCountMin, int fr
 Napi::Object AudioOutputDevice::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "AudioOutputDevice", {
         InstanceMethod<&AudioOutputDevice::Close>("close", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
-        InstanceMethod<&AudioOutputDevice::SetCallback>("setCallback", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
-        InstanceMethod<&AudioOutputDevice::GetCallback>("getCallback", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+
         InstanceMethod<&AudioOutputDevice::GetSampleRate>("getSampleRate", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
         InstanceMethod<&AudioOutputDevice::GetFormat>("getFormat", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
         InstanceMethod<&AudioOutputDevice::GetChannelCount>("getChannelCount", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+        
+        InstanceMethod<&AudioOutputDevice::Queue>("queue", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+        InstanceMethod<&AudioOutputDevice::GetSamplesPerBlock>("getSamplesPerBlock", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+        InstanceMethod<&AudioOutputDevice::GetQueueSize>("getQueueSize", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
     });
 
     Napi::FunctionReference* constructor = new Napi::FunctionReference();
@@ -173,6 +185,24 @@ AudioOutputDevice::~AudioOutputDevice() {
     }
 }
 
+bool AudioOutputDevice::popQueue(uint8_t* &out, size_t &size) {
+    size_t bytesPerFrame = soundio_get_bytes_per_frame(outStream->format, outStream->layout.channel_count);
+    size = bytesPerFrame * BUFFER_SIZE;
+
+    queueMutex.lock();
+
+    if (blockQueue.size() > 0) {
+        out = blockQueue.top();
+        blockQueue.pop();
+        queueMutex.unlock();
+
+        return true;
+    } else {
+        queueMutex.unlock();
+        return false;
+    }
+}
+
 Napi::Value AudioOutputDevice::Close(const Napi::CallbackInfo& info) {
     if (!isClosed) {
         soundio_outstream_destroy(outStream);
@@ -180,28 +210,77 @@ Napi::Value AudioOutputDevice::Close(const Napi::CallbackInfo& info) {
         isClosed = true;
     }
 
-    return info.Env().Null();
+    return info.Env().Undefined();
 }
 
+/*
 Napi::Value AudioOutputDevice::SetCallback(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-    Napi::Value callback = info[0];
+    // Napi::Env env = info.Env();
+    // Napi::Value callback = info[0];
 
-    if (callback.IsFunction()) {
-        jsCallback = Napi::Persistent(callback.As<Napi::Function>());
-        return env.Null();
-    } else {
-        Napi::TypeError::New(env, "AudioOutputDevice.setCallback: Argument 1 is not a function.").ThrowAsJavaScriptException();
-        return env.Null();
+    // if (callback.IsFunction()) {
+    //     jsCallback = Napi::ThreadSafeFunction::New(env, callback.As<Napi::Function>(), "Callback", 0, 1);
+    //     callbackSet = true;
+    //     return env.Null();
+    // } else {
+    //     Napi::TypeError::New(env, "AudioOutputDevice.setCallback: Argument 1 is not a function.").ThrowAsJavaScriptException();
+    //     callbackSet = false;
+    //     return env.Null();
+    // }
+    return info.Env().Undefined();
+}
+*/
+
+Napi::Value AudioOutputDevice::Queue(const Napi::CallbackInfo& info) {
+    Napi::Env env = info.Env();
+    size_t bytesPerFrame = soundio_get_bytes_per_frame(outStream->format, outStream->layout.channel_count);
+
+    if (bytesPerFrame <= 0) {
+        Napi::Error::New(env, "AudioOutputDevice.queue: invalid format").ThrowAsJavaScriptException();
+        return env.Undefined();
     }
+
+    if (info[0].IsArrayBuffer()) {
+        Napi::ArrayBuffer buf = info[0].As<ArrayBuffer>();
+
+        if (buf.ByteLength() != bytesPerFrame * BUFFER_SIZE) {
+            Napi::RangeError::New(env, "AudioOutputDevice.queue: ArrayBuffer.byteLength != samplesPerBlock * bytesPerFrame").ThrowAsJavaScriptException();
+            return env.Undefined();
+        }
+
+        // copy ArrayBuffer source to a new block
+        uint8_t* block = new uint8_t[bytesPerFrame * BUFFER_SIZE];
+        memcpy(block, buf.Data(), buf.ByteLength());
+
+        // todo: ...maybe should make this async?
+        queueMutex.lock();
+        blockQueue.push(block);
+        queueMutex.unlock();
+    } else {
+        Napi::TypeError::New(env, "AudioOutputDevice.queue: Argument 1 is not a Buffer").ThrowAsJavaScriptException();
+        return env.Undefined();
+    }
+
+    return env.Undefined();
 }
 
+Napi::Value AudioOutputDevice::GetSamplesPerBlock(const Napi::CallbackInfo& info) {
+    return Napi::Number::New(info.Env(), BUFFER_SIZE);
+}
+
+Napi::Value AudioOutputDevice::GetQueueSize(const Napi::CallbackInfo& info) {
+    return Napi::Number::New(info.Env(), blockQueue.size());
+}
+
+/*
 Napi::Value AudioOutputDevice::GetCallback(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
 
-    if (jsCallback.IsEmpty()) return env.Undefined();
+    if (callbackSet) return jsCallback.
+    if (jsCallback.()) return env.Undefined();
     else return jsCallback.Value();
 }
+*/
 
 Napi::Value AudioOutputDevice::GetSampleRate(const Napi::CallbackInfo& info) {
     return Napi::Number::New(info.Env(), outStream->sample_rate);
