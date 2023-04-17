@@ -5,7 +5,12 @@
   "main": "index.js",
   "scripts": {
     "preinstall": "sh ./install.sh",
-    "install": "node-gyp rebuild && mv build/Release/libsoundio.so.2.0.0 build/Release/libsoundio.so.2"
+    "install": "node-gyp rebuild && mv build/Release/libsoundio.so.2.0.0 build/Release/libsoundio.so.2",
+    "build:dev": "node-gyp -j 16 build --debug",
+    "build": "node-gyp -j 16 build",
+    "rebuild:dev": "node-gyp -j 16 rebuild --debug",
+    "rebuild": "node-gyp -j 16 rebuild",
+    "test": "node examples/test.js"
   },
   "dependencies": {
     "cmake-js": "^7.2.1",

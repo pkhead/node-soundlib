@@ -14,4 +14,4 @@ setInterval(() => {
 
         outputDevice.queue(arr.buffer);
     }
-}, 16);
+}, 40);
