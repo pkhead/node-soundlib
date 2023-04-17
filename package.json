@@ -4,7 +4,12 @@
   "description": "wrapper for libsoundio",
   "main": "index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "preinstall": "sh ./install.sh",
+    "install": "node-gyp rebuild && mv build/Release/libsoundio.so.2.0.0 build/Release/libsoundio.so.2"
+  },
+  "dependencies": {
+    "cmake-js": "^7.2.1",
+    "node-addon-api": "*"
   },
   "author": "pkhead",
   "license": "MIT"
