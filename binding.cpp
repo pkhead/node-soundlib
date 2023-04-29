@@ -49,15 +49,13 @@ class AudioOutputDevice : public Napi::ObjectWrap<AudioOutputDevice> {
 };
 
 static void writeCallback(SoundIoOutStream* stream, int frameCountMin, int frameCountMax) {
-    printf("write callback\n");
-
     AudioOutputDevice* data = (AudioOutputDevice*)stream->userdata;
     SoundIoChannelArea* areas;
     int framesLeft, frameCount, err;
 
     char* readPtr = soundio_ring_buffer_read_ptr(data->ringBuffer);
     int fillBytes = soundio_ring_buffer_fill_count(data->ringBuffer);
-    std::cout << "fillBytes: " << fillBytes << '\n';
+    //std::cout << "fillBytes: " << fillBytes << '\n';
     int fillCount = fillBytes / stream->bytes_per_frame;
 
     if (fillCount < frameCountMin) {
@@ -97,13 +95,13 @@ static void writeCallback(SoundIoOutStream* stream, int frameCountMin, int frame
         }
         if (frameCount <= 0) break;
 
-        std::cout << "write " << frameCount << " frames\n";
+        //std::cout << "write " << frameCount << " frames\n";
 
         for (int frame = 0; frame < frameCount; frame++) {
             for (int ch = 0; ch < stream->layout.channel_count; ch++) {
-                //memcpy(areas[ch].ptr, readPtr, stream->bytes_per_sample);
-                float *p = (float*)areas[ch].ptr;
-                *p = (float)rand() / RAND_MAX;
+                memcpy(areas[ch].ptr, readPtr, stream->bytes_per_sample);
+                //float *p = (float*)areas[ch].ptr;
+                //*p = (float)rand() / RAND_MAX;
                 areas[ch].ptr += areas[ch].step;
                 readPtr += stream->bytes_per_sample;
             }
@@ -118,6 +116,9 @@ static void writeCallback(SoundIoOutStream* stream, int frameCountMin, int frame
     }
 
     soundio_ring_buffer_advance_read_ptr(data->ringBuffer, readCount * stream->bytes_per_frame);
+
+    std::cout << "left to read: " << soundio_ring_buffer_fill_count(data->ringBuffer) << "\n";
+    std::cout << "queue size: " << soundio_ring_buffer_free_count(data->ringBuffer) << "\n";
 }
 
 static void underflowCallback(SoundIoOutStream* stream) {
@@ -253,7 +254,7 @@ AudioOutputDevice::AudioOutputDevice(const Napi::CallbackInfo& info) : Napi::Obj
     printf("create ring buffer\n");
 
     // create and initialize ring buffer
-    size_t capacity = RING_BUFFER_SIZE * soundio_get_bytes_per_frame(outStream->format, outStream->layout.channel_count);
+    size_t capacity = RING_BUFFER_SIZE * outStream->bytes_per_frame;
     ringBuffer = soundio_ring_buffer_create(soundio, capacity);
     char* writePtr = soundio_ring_buffer_write_ptr(ringBuffer);
     memset(writePtr, 0, capacity);
