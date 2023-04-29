@@ -4,7 +4,7 @@
   "description": "Node.js audio library using libsoundio",
   "main": "index.js",
   "scripts": {
-    "preinstall": "git submodule init && git submodule update && sh ./install.sh",
+    "preinstall": "sh ./install.sh",
     "install": "node-gyp rebuild && mv build/Release/libsoundio.so.2.0.0 build/Release/libsoundio.so.2",
     "test": "node examples/test.js",
     "build": "sh ./install.sh"

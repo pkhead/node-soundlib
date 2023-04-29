@@ -1,8 +1,5 @@
 #!/usr/bin/bash
-if [ ! -f "libsoundio/build" ]
-then
-    mkdir libsoundio/build
-fi
+mkdir libsoundio/build
 cd libsoundio/build
 cmake ..
 make
