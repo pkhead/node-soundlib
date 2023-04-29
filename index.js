@@ -93,8 +93,13 @@ exports.AudioOutputDevice = class {
         return this._handle.getBytesFree() / (this._handle.getSampleSize() * this._handle.getChannelCount());
     }
 
-    get sampleByteSize() {
-        return this._handle.getSampleSize();
+    get numQueuedFrames() {
+        let bytesQueued = this._handle.getCapacity() - this._handle.getBytesFree();
+        return Math.floor(bytesQueued / (this._handle.getSampleSize() * this._handle.getChannelCount()));
+    }
+
+    get bitDepth() {
+        return this._handle.getSampleSize() * 8;
     }
 
     get format() {

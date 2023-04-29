@@ -15,7 +15,7 @@ struct OutputDeviceStruct {
 };
 
 // Buffer size measured in frames
-constexpr size_t RING_BUFFER_SIZE = 8192;
+//constexpr size_t RING_BUFFER_SIZE = 8192;
 
 class AudioOutputDevice : public Napi::ObjectWrap<AudioOutputDevice> {
     public:
@@ -27,6 +27,7 @@ class AudioOutputDevice : public Napi::ObjectWrap<AudioOutputDevice> {
         bool callbackSet;
         
         SoundIoRingBuffer* ringBuffer;
+        size_t bufCapacity;
     private:
         SoundIoOutStream* outStream;
         SoundIoDevice* device;
@@ -44,6 +45,7 @@ class AudioOutputDevice : public Napi::ObjectWrap<AudioOutputDevice> {
 
         Napi::Value Queue(const Napi::CallbackInfo& info);
         Napi::Value GetBytesFree(const Napi::CallbackInfo& info);
+        Napi::Value GetCapacity(const Napi::CallbackInfo& info);
         Napi::Value GetSampleSize(const Napi::CallbackInfo& info);
 
 };
@@ -130,6 +132,7 @@ Napi::Object AudioOutputDevice::Init(Napi::Env env, Napi::Object exports) {
         
         InstanceMethod<&AudioOutputDevice::Queue>("queue", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
         InstanceMethod<&AudioOutputDevice::GetBytesFree>("getBytesFree", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
+        InstanceMethod<&AudioOutputDevice::GetCapacity>("getCapacity", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
         InstanceMethod<&AudioOutputDevice::GetSampleSize>("getSampleSize", static_cast<napi_property_attributes>(napi_writable | napi_configurable)),
     });
 
@@ -183,8 +186,6 @@ AudioOutputDevice::AudioOutputDevice(const Napi::CallbackInfo& info) : Napi::Obj
 
     int err;
     
-    printf("create device\n");
-
     if ((err = soundio_outstream_open(outStream))) {
         std::stringstream msg;
         msg << "unable to open device: " << soundio_strerror(err);
@@ -192,21 +193,22 @@ AudioOutputDevice::AudioOutputDevice(const Napi::CallbackInfo& info) : Napi::Obj
         return;
     }
 
-    printf("create ring buffer\n");
-
-    // create and initialize ring buffer
-    size_t capacity = RING_BUFFER_SIZE * outStream->bytes_per_frame;
-    ringBuffer = soundio_ring_buffer_create(soundio, capacity);
-    //char* writePtr = soundio_ring_buffer_write_ptr(ringBuffer);
-    //memset(writePtr, 0, capacity);
-    //soundio_ring_buffer_advance_write_ptr(ringBuffer, capacity);
-
     if (outStream->layout_error) {
         std::stringstream msg;
         msg << "unable to set channel layout: " << soundio_strerror(outStream->layout_error);
         Napi::Error::New(info.Env(), msg.str()).ThrowAsJavaScriptException();
         return;
     }
+
+    // create and initialize ring buffer
+    bufCapacity = (size_t)(outStream->software_latency * outStream->sample_rate) * 4;
+    size_t capacity = bufCapacity * outStream->bytes_per_frame;
+    ringBuffer = soundio_ring_buffer_create(soundio, capacity);
+    bufCapacity = soundio_ring_buffer_capacity(ringBuffer);
+
+    //char* writePtr = soundio_ring_buffer_write_ptr(ringBuffer);
+    //memset(writePtr, 0, capacity);
+    //soundio_ring_buffer_advance_write_ptr(ringBuffer, capacity);
     
     if ((err = soundio_outstream_start(outStream))) {
         std::stringstream msg;
@@ -266,6 +268,10 @@ Napi::Value AudioOutputDevice::Queue(const Napi::CallbackInfo& info) {
 
 Napi::Value AudioOutputDevice::GetBytesFree(const Napi::CallbackInfo& info) {
     return Napi::Number::New(info.Env(), soundio_ring_buffer_free_count(ringBuffer));
+}
+
+Napi::Value AudioOutputDevice::GetCapacity(const Napi::CallbackInfo& info) {
+    return Napi::Number::New(info.Env(), bufCapacity);
 }
 
 Napi::Value AudioOutputDevice::GetSampleSize(const Napi::CallbackInfo& info) {

@@ -1,14 +1,25 @@
 const audiolib = require("../index");
 
 let outputDevice = new audiolib.AudioOutputDevice();
-const FREQ = 440;
+let FREQ = 440;
 let time = 0;
 
 const BUF_SIZE = 512;
-let buf = new Float32Array(512 * outputDevice.channelCount);
+let buf = new Float32Array(BUF_SIZE * outputDevice.channelCount);
+
+process.stdin.on("data", (chunk) => {
+    let msg = chunk.toString().trim();
+
+    if (msg === "a") {
+        FREQ /= 2;
+    } else if (msg === "s") {
+        FREQ *= 2;
+    }
+});
+
 
 setInterval(() => {
-    while (outputDevice.numFreeFrames > BUF_SIZE) {
+    while (outputDevice.numQueuedFrames < BUF_SIZE * 5) {
         for (let i = 0; i < buf.length; i += 2) {
             let val = 0.1 * Math.sin(time);
             buf[i] = val;
@@ -19,4 +30,4 @@ setInterval(() => {
         
         outputDevice.queue(buf.buffer);
     }
-}, 100);
+}, 5);
