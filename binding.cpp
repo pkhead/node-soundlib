@@ -239,6 +239,7 @@ AudioOutputDevice::AudioOutputDevice(const Napi::CallbackInfo& info) : Napi::Obj
     outStream->userdata = this;
     outStream->write_callback = writeCallback;
     outStream->underflow_callback = underflowCallback;
+    outStream->software_latency = 0.1;
 
     int err;
     

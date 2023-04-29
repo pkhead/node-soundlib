@@ -18,6 +18,5 @@ setInterval(() => {
         }
         
         outputDevice.queue(arr.buffer);
-        
     }
 }, 100);
