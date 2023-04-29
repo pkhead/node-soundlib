@@ -1,6 +1,6 @@
 {
   "name": "soundlib",
-  "version": "1.0.0",
+  "version": "0.1.0",
   "description": "Node.js audio library using libsoundio",
   "main": "index.js",
   "scripts": {

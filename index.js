@@ -2,54 +2,59 @@ const bindings = require("./build/Release/audiolib.node");
 
 let openDevices = [];
 
-process.on("exit", () => {
-    console.log("clean up devices");
-
+function cleanup() {
     for (let device of openDevices) {
         device._handle.close();
     }
-
+    
     bindings.close();
-})
+}
+
+process.on("exit", cleanup);
 
 exports.AudioOutputDevice = class {
     constructor(options) {
-        let format = bindings.FORMAT_F32_NE;
+        let format = "FORMAT_F32_NE";
 
         if (options) {
-            const endian = "NE";
+            let endian = "NE";
 
-            if (options.endianness === "little") endian = "LE";
-            else if (options.endianness === "big") endian = "BE";
-            else if (options.endianness === "native") endian = "LE";
-            else if (options.endianness === "foreign") endian = "FE";
-            else {
-                throw new Error(`invalid value for options.endianness, expected "little", "big", "native", or "foreign"`);
+            if (options.endianness !== undefined) {
+                if (options.endianness === "little") endian = "LE";
+                else if (options.endianness === "big") endian = "BE";
+                else if (options.endianness === "native") endian = "NE";
+                else if (options.endianness === "foreign") endian = "FE";
+                else {
+                    throw new Error(`invalid value for options.endianness, expected "little", "big", "native", or "foreign"`);
+                }
             }
 
             if (options.float) {
+                if (options.bitDepth === undefined) options.bitDepth = 32;
+
                 switch (options.bitDepth) {
                     case 32:
-                        format = bindings[`FORMAT_F32_${endian}`];
+                        format = `FORMAT_F32_${endian}`;
                         break;
 
                     case 64:
-                        format = bindings[`FORMAT_F64_${endian}`];
+                        format = `FORMAT_F64_${endian}`;
                         break;
 
                     default:
                         throw new Error(`invalid bitDepth for float, expected 32 or 64`);
                 }
             } else {
-                const sign = "S";
+                let sign = "S";
                 if (options.signed !== undefined) sign = options.signed ? "S" : "U";
+                if (options.bitDepth === undefined) options.bitDepth = 16;
 
                 // 8-bit values have no depth
                 if (options.bitDepth === 8) {
                     format = `FORMAT_${sign}8`;
                 } else {
                     if (options.bitDepth !== 16 && options.bitDepth !== 24 && options.bitDepth !== 32 && options.bitDepth !== 64) {
-                        throw new Error(`invalid bitDepth, expected 8, 16, 24, 32,or 64`);
+                        throw new Error(`invalid bitDepth, expected 8, 16, 24, 32, or 64`);
                     }
 
                     format = `FORMAT_${sign}${options.bitDepth}_${endian}`;
@@ -60,18 +65,18 @@ exports.AudioOutputDevice = class {
         var openOptions = {
             sampleRate: options === undefined || options.sampleRate === undefined ? 48000 : options.sampleRate,
             channels: options === undefined || options.channelCount === undefined ? 2 : options.channelCount,
-            format: format
-        }
+            format: bindings[format]
+        };
 
         this._handle = new bindings.AudioOutputDevice(openOptions);
-        this.isClosed = false;
+        this._isClosed = false;
         openDevices.push(this);
     }
 
     close() {
-        if (this.isClosed) throw new Error("OutputDevice already closed");
+        if (this._isClosed) throw new Error("OutputDevice already closed");
         this._handle.close();
-        this.isClosed = true;
+        this._isClosed = true;
         
         let idx = openDevices.indexOf(this);
         if (idx >= 0) openDevices.splice(idx, 1);
@@ -79,6 +84,10 @@ exports.AudioOutputDevice = class {
 
     queue(buffer) {
         return this._handle.queue(buffer);
+    }
+
+    get isClosed() {
+        return this._isClosed;
     }
 
     get sampleRate() {
@@ -101,10 +110,10 @@ exports.AudioOutputDevice = class {
     get bitDepth() {
         return this._handle.getSampleSize() * 8;
     }
-
+    
+    /*
     get format() {
         throw new Error("todo: get AudioOutputDevice(wrapper).format");
-        /*
         let format_id = this._handle.getFormat();
         if (format_id == bindings.FORMAT_INVALID) return null;
 
@@ -126,6 +135,6 @@ exports.AudioOutputDevice = class {
 
         if (sign === "F") {
 
-        }*/
-    }
+        }
+    }*/
 }
