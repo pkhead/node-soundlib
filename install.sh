@@ -1,3 +1,4 @@
+#!/usr/bin/bash
 if [ ! -f "libsoundio/build" ]
 then
     mkdir libsoundio/build
