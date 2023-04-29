@@ -17,7 +17,6 @@ process.stdin.on("data", (chunk) => {
     }
 });
 
-
 setInterval(() => {
     while (outputDevice.numQueuedFrames < BUF_SIZE * 5) {
         for (let i = 0; i < buf.length; i += 2) {
