@@ -55,7 +55,6 @@ static void writeCallback(SoundIoOutStream* stream, int frameCountMin, int frame
 
     char* readPtr = soundio_ring_buffer_read_ptr(data->ringBuffer);
     int fillBytes = soundio_ring_buffer_fill_count(data->ringBuffer);
-    //std::cout << "fillBytes: " << fillBytes << '\n';
     int fillCount = fillBytes / stream->bytes_per_frame;
 
     if (fillCount < frameCountMin) {
@@ -95,8 +94,6 @@ static void writeCallback(SoundIoOutStream* stream, int frameCountMin, int frame
         }
         if (frameCount <= 0) break;
 
-        //std::cout << "write " << frameCount << " frames\n";
-
         for (int frame = 0; frame < frameCount; frame++) {
             for (int ch = 0; ch < stream->layout.channel_count; ch++) {
                 memcpy(areas[ch].ptr, readPtr, stream->bytes_per_sample);
@@ -116,69 +113,12 @@ static void writeCallback(SoundIoOutStream* stream, int frameCountMin, int frame
     }
 
     soundio_ring_buffer_advance_read_ptr(data->ringBuffer, readCount * stream->bytes_per_frame);
-
-    std::cout << "left to read: " << soundio_ring_buffer_fill_count(data->ringBuffer) << "\n";
-    std::cout << "queue size: " << soundio_ring_buffer_free_count(data->ringBuffer) << "\n";
 }
 
 static void underflowCallback(SoundIoOutStream* stream) {
     static int count = 0;
     fprintf(stderr, "underflow %d\n", count++);
 }
-
-/*
-static void writeCallback(SoundIoOutStream* outStream, int frameCountMin, int frameCountMax) {
-    const SoundIoChannelLayout* layout = &outStream->layout;
-    struct SoundIoChannelArea* areas;
-    int err;
-
-    size_t frameSize = soundio_get_bytes_per_frame(outStream->format, layout->channel_count);
-
-    AudioOutputDevice* data = (AudioOutputDevice*)outStream->userdata;
-    char* writePtr = soundio_ring_buffer_write_ptr(data->ringBuffer);
-    size_t freeBytes = soundio_ring_buffer_free_count(data->ringBuffer);
-    size_t freeCount = freeBytes / outStream->bytes_per_frame;
-
-    if (frameCountMin > freeCount) {
-        printf("error: ring buffer overflow\n");
-        return;
-    }
-
-    int framesLeft = freeCount < frameCountMax ? freeCount : frameCountMax;
-
-    while (framesLeft > 0) {
-        int frameCount = framesLeft;
-
-        if ((err = soundio_outstream_begin_write(outStream, &areas, &frameCount))) {
-            printf("err soundio_outstream_begin_write: %s\n", soundio_strerror(err));
-            return;
-        }
-
-        std::cout << "[" << frameCountMin << ", " << frameCountMax << "]: " << frameCount << '\n';
-
-        if (!frameCount) break;
-        
-        if (!areas) {
-            // due to an overflow there is a hole
-            // fill the ring buffer with silence for the rest of the hole
-            memset(writePtr, 0, frameCount * outStream->bytes_per_frame);
-            fprintf(stderr, "dropped %i frames due to internal overflow\n", frameCount);
-        } else {
-            for (int frame = 0; frame < frameCount; frame++) {
-                for (int ch = 0; ch < layout->channel_count; ch++) {
-                    memcpy()
-                }
-            }
-        }
-        if ((err = soundio_outstream_end_write(outStream))) {
-            printf("err soundio_outstream_end_write: %s\n", soundio_strerror(err));
-            return;
-        }
-
-        framesLeft -= frameCount;
-    }
-}
-*/
 
 Napi::Object AudioOutputDevice::Init(Napi::Env env, Napi::Object exports) {
     Napi::Function func = DefineClass(env, "AudioOutputDevice", {
@@ -257,9 +197,9 @@ AudioOutputDevice::AudioOutputDevice(const Napi::CallbackInfo& info) : Napi::Obj
     // create and initialize ring buffer
     size_t capacity = RING_BUFFER_SIZE * outStream->bytes_per_frame;
     ringBuffer = soundio_ring_buffer_create(soundio, capacity);
-    char* writePtr = soundio_ring_buffer_write_ptr(ringBuffer);
-    memset(writePtr, 0, capacity);
-    soundio_ring_buffer_advance_write_ptr(ringBuffer, capacity);
+    //char* writePtr = soundio_ring_buffer_write_ptr(ringBuffer);
+    //memset(writePtr, 0, capacity);
+    //soundio_ring_buffer_advance_write_ptr(ringBuffer, capacity);
 
     if (outStream->layout_error) {
         std::stringstream msg;
@@ -301,24 +241,6 @@ Napi::Value AudioOutputDevice::Close(const Napi::CallbackInfo& info) {
     return info.Env().Undefined();
 }
 
-/*
-Napi::Value AudioOutputDevice::SetCallback(const Napi::CallbackInfo& info) {
-    // Napi::Env env = info.Env();
-    // Napi::Value callback = info[0];
-
-    // if (callback.IsFunction()) {
-    //     jsCallback = Napi::ThreadSafeFunction::New(env, callback.As<Napi::Function>(), "Callback", 0, 1);
-    //     callbackSet = true;
-    //     return env.Null();
-    // } else {
-    //     Napi::TypeError::New(env, "AudioOutputDevice.setCallback: Argument 1 is not a function.").ThrowAsJavaScriptException();
-    //     callbackSet = false;
-    //     return env.Null();
-    // }
-    return info.Env().Undefined();
-}
-*/
-
 Napi::Value AudioOutputDevice::Queue(const Napi::CallbackInfo& info) {
     Napi::Env env = info.Env();
     
@@ -349,16 +271,6 @@ Napi::Value AudioOutputDevice::GetBytesFree(const Napi::CallbackInfo& info) {
 Napi::Value AudioOutputDevice::GetSampleSize(const Napi::CallbackInfo& info) {
     return Napi::Number::New(info.Env(), outStream->bytes_per_sample);
 }
-
-/*
-Napi::Value AudioOutputDevice::GetCallback(const Napi::CallbackInfo& info) {
-    Napi::Env env = info.Env();
-
-    if (callbackSet) return jsCallback.
-    if (jsCallback.()) return env.Undefined();
-    else return jsCallback.Value();
-}
-*/
 
 Napi::Value AudioOutputDevice::GetSampleRate(const Napi::CallbackInfo& info) {
     return Napi::Number::New(info.Env(), outStream->sample_rate);
