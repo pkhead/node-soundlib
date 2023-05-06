@@ -9,9 +9,9 @@
             ],
             #"libraries": ["-lasound", "-lpulse"],
 
-            # "defines": ["NAPI_CPP_EXCEPTIONS"],
-            # "cflags!": ["-fno-exceptions"],
-            # "cflags_cc!": ["-fno-exceptions"],
+            "defines": ["NAPI_CPP_EXCEPTIONS"],
+            "cflags!": ["-fno-exceptions"],
+            "cflags_cc!": ["-fno-exceptions"],
             
             "conditions": [
                 ["OS=='win'", {
