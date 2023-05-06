@@ -1,4 +1,14 @@
 # soundlib
 A Node.js audio library using libsoundio
 
-TODO: Check Windows support in install script
+## Installation
+Dependencies:
+- CMake
+- Make or NMake (Windows)
+- Python
+
+Run the following commands:
+```
+npm run build
+npm install
+```
