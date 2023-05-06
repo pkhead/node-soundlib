@@ -1,13 +1,12 @@
 {
   "name": "soundlib",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Node.js audio library using libsoundio",
   "main": "index.js",
   "scripts": {
-    "preinstall": "sh ./install.sh",
-    "install": "node-gyp rebuild && mv build/Release/libsoundio.so.2.0.0 build/Release/libsoundio.so.2",
+    "install": "node install.js",
     "test": "node examples/test.js",
-    "build": "sh ./install.sh"
+    "build": "node build.js"
   },
   "dependencies": {
     "node-addon-api": "*"

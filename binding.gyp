@@ -7,22 +7,34 @@
                 "<!(node -p \"require('node-addon-api').include_dir\")",
                 "libsoundio"
             ],
-            "dependencies": ["<!(node -p \"require('node-addon-api').gyp\")"],
             #"libraries": ["-lasound", "-lpulse"],
 
             # "defines": ["NAPI_CPP_EXCEPTIONS"],
-            "cflags!": ["-fno-exceptions"],
-            "cflags_cc!": ["-fno-exceptions"],
-
+            # "cflags!": ["-fno-exceptions"],
+            # "cflags_cc!": ["-fno-exceptions"],
+            
             "conditions": [
                 ["OS=='win'", {
                     "defines": ["_HAS_EXCEPTIONS=1"],
                     "msvs_settings": {
                         "VCCLCompilerTool": {
                             "ExceptionHandling": 1
+                        },
+                    },
+
+                    "libraries": [
+                        "<(module_root_dir)/libsoundio/build/soundio.lib"
+                    ],
+
+                    "copies": [
+                        {
+                            "destination": "build/Release/",
+                            "files": ["<(module_root_dir)/libsoundio/build/soundio.dll"]
                         }
-                    }
+                    ]
                 }],
+
+                # todo
                 ["OS=='mac'", {
                     "xcode_settings": {
                         "GCC_ENABLE_CPP_EXCEPTIONS": "YES",
@@ -30,6 +42,7 @@
                         "MACOSX_DEPLOYMENT_TARGET": "10.7",
                     },
                 }],
+                
                 ["OS=='linux'", {
                     "link_settings": {
                         "libraries": ["<@(module_root_dir)/build/Release/libsoundio.so.2.0.0"],

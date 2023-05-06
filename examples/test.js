@@ -19,6 +19,8 @@ process.stdin.on("data", (chunk) => {
         FREQ /= 2;
     } else if (msg === "s") {
         FREQ *= 2;
+    } else if (msg === "q") {
+        process.exit();
     }
 });
 
